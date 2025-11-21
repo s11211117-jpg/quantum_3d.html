@@ -2,83 +2,141 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quantum Execution | Deep Simulation</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quantum Core | Responsive</title>
     <style>
-        /* --- UI & Layout --- */
-        body { margin: 0; background-color: #000; overflow: hidden; font-family: 'Courier New', monospace; }
-        
+        /* --- 基礎設定 --- */
+        body { 
+            margin: 0; 
+            background-color: #000; 
+            overflow: hidden; 
+            font-family: 'Segoe UI', 'Courier New', monospace; 
+            touch-action: none; /* 禁止手機瀏覽器預設縮放 */
+        }
+
+        /* --- UI 層 (Flexbox 佈局) --- */
         #ui-layer {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            pointer-events: none; /* 讓滑鼠穿透 UI 操作 3D */
-            display: flex; flex-direction: column; justify-content: space-between;
+            pointer-events: none;
+            z-index: 10;
+            display: flex;
+            box-sizing: border-box;
         }
 
-        /* 頂部標題 */
-        .header {
-            padding: 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
-            text-align: center;
+        /* --- 標題與狀態 --- */
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
         }
-        h1 { color: #fff; margin: 0; font-weight: 300; letter-spacing: 8px; text-shadow: 0 0 20px #00ffff; }
-        .status { color: #66fcf1; font-size: 12px; margin-top: 5px; opacity: 0.8; }
+        h1 { 
+            color: #fff; margin: 0; font-weight: 200; letter-spacing: 4px; 
+            text-transform: uppercase;
+        }
+        .status { color: #66fcf1; font-size: 0.8rem; margin-top: 5px; opacity: 0.8; }
 
-        /* 底部控制區 */
+        /* --- LOG 面板 --- */
+        #log-panel {
+            position: absolute;
+            color: #0f0;
+            font-family: monospace;
+            font-size: 12px;
+            text-shadow: 0 0 5px #0f0;
+            pointer-events: none;
+            white-space: pre-line;
+        }
+
+        /* --- 按鈕控制區 --- */
         .controls {
-            padding: 40px;
-            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
-            display: flex; gap: 20px; justify-content: center;
-            pointer-events: auto; /* 恢復按鈕點擊 */
+            position: absolute;
+            pointer-events: auto;
+            display: flex;
+            gap: 15px;
         }
 
         button {
-            background: rgba(0, 20, 40, 0.8);
+            background: rgba(0, 20, 40, 0.5);
+            backdrop-filter: blur(8px);
             border: 1px solid #66fcf1;
             color: #66fcf1;
-            padding: 15px 40px;
-            font-size: 16px;
             font-family: inherit;
             cursor: pointer;
-            transition: 0.3s;
             text-transform: uppercase;
-            letter-spacing: 2px;
-            position: relative;
-            overflow: hidden;
+            transition: 0.3s;
+            font-weight: bold;
+            letter-spacing: 1px;
         }
+        button:hover { background: #66fcf1; color: #000; box-shadow: 0 0 20px #66fcf1; }
+        button:active { transform: scale(0.95); }
 
-        button:hover { background: #66fcf1; color: #000; box-shadow: 0 0 30px #66fcf1; }
+        /* =========================================
+           RWD 響應式設計：電腦 vs 手機
+           ========================================= */
         
-        /* 按鈕按下時的特效 */
-        button.active::after {
-            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(255,255,255,0.2);
+        /* 電腦版樣式 (螢幕寬度 > 768px) */
+        @media (min-width: 769px) {
+            h1 { font-size: 2rem; }
+            
+            /* LOG 在右上角 */
+            #log-panel {
+                top: 30px; right: 30px; text-align: right;
+            }
+
+            /* 控制區在右下角，垂直排列 */
+            .controls {
+                bottom: 40px; right: 40px;
+                flex-direction: column;
+                width: 200px;
+            }
+            button { padding: 15px; border-radius: 0 15px 0 15px; }
         }
 
-        #log-panel {
-            position: absolute; top: 50%; right: 20px; transform: translateY(-50%);
-            width: 250px; font-size: 12px; color: #0f0;
-            text-shadow: 0 0 5px #0f0;
-            line-height: 1.5;
-            opacity: 0.7;
+        /* 手機版樣式 (螢幕寬度 <= 768px) */
+        @media (max-width: 768px) {
+            h1 { font-size: 1.2rem; letter-spacing: 2px; }
+            .info-panel { left: 50%; transform: translateX(-50%); text-align: center; width: 100%; }
+            
+            /* LOG 移到中間上方，避免擋住 */
+            #log-panel {
+                top: 80px; left: 50%; transform: translateX(-50%);
+                text-align: center;
+                width: 100%;
+            }
+
+            /* 控制區在底部，水平排列 */
+            .controls {
+                bottom: 30px; left: 50%; transform: translateX(-50%);
+                width: 90%;
+                flex-direction: row;
+            }
+            button { padding: 15px 0; border-radius: 8px; flex: 1; font-size: 14px; }
         }
+        
+        #loading {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            color: #66fcf1; letter-spacing: 2px; animation: blink 1s infinite;
+        }
+        @keyframes blink { 50% { opacity: 0.3; } }
     </style>
 </head>
 <body>
 
+    <div id="loading">SYSTEM INITIALIZING...</div>
+
     <div id="ui-layer">
-        <div class="header">
-            <h1>QUANTUM CORE</h1>
-            <div class="status">SYSTEM TEMP: 15mK | COHERENCE: STABLE</div>
+        <div class="info-panel">
+            <h1>Quantum Core</h1>
+            <div class="status">SYSTEM: ONLINE | 15mK</div>
         </div>
         
         <div id="log-panel">
-            > SYSTEM READY<br>
-            > WAITING FOR INSTRUCTION...
+            > READY
         </div>
 
         <div class="controls">
-            <button id="btn-view">切換視角 (View)</button>
-            <button id="btn-run" style="border-color: #ff0055; color: #ff0055;">執行運算 (EXECUTE)</button>
+            <button id="btn-view">View (視角)</button>
+            <button id="btn-run" style="border-color: #ff0055; color: #ff4477;">Execute (執行)</button>
         </div>
     </div>
 
@@ -89,337 +147,274 @@
         import { RenderPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 
-        // --- 全域變數 ---
+        // 全域變數
         let scene, camera, renderer, composer, controls;
-        let qpuGroup, shellGroup, machineGroup;
-        let qubits = []; // 儲存 5 個 qubit 的網格物件
-        let pulses = []; // 儲存正在飛行的訊號脈衝
-        let isInternalView = false;
-        let isRunning = false;
+        let machineGroup, shellGroup, qpuGroup;
+        let qubits = [], pulses = [];
+        let isInternalView = false, isRunning = false;
+        let isMobile = false;
 
-        const logPanel = document.getElementById('log-panel');
+        const logEl = document.getElementById('log-panel');
 
         init();
         animate();
 
         function init() {
-            // 1. 場景設定
+            // 1. 偵測裝置
+            checkDevice();
+
+            // 2. 場景與相機
             scene = new THREE.Scene();
             scene.fog = new THREE.FogExp2(0x000000, 0.02);
 
             camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
-            camera.position.set(10, 5, 10);
+            updateCameraByDevice(); // 根據裝置設定相機初始位置
 
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            // 3. 渲染器
+            renderer = new THREE.WebGLRenderer({ antialias: !isMobile }); // 手機關閉反鋸齒以提升效能
             renderer.setSize(window.innerWidth, window.innerHeight);
-            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
             renderer.toneMapping = THREE.ReinhardToneMapping;
             document.body.appendChild(renderer.domElement);
 
-            // 2. 後製特效 (Bloom) - 讓光線暈開
+            document.getElementById('loading').style.display = 'none';
+
+            // 4. Bloom 特效
             const renderScene = new RenderPass(scene, camera);
-            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
-            bloomPass.threshold = 0.1;
-            bloomPass.strength = 1.2; // 強烈的光暈
+            // 手機版降低 Bloom 解析度
+            const bloomResolution = isMobile ? new THREE.Vector2(window.innerWidth/2, window.innerHeight/2) : new THREE.Vector2(window.innerWidth, window.innerHeight);
+            const bloomPass = new UnrealBloomPass(bloomResolution, 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.15;
+            bloomPass.strength = isMobile ? 0.8 : 1.2; // 手機版光暈弱一點
             bloomPass.radius = 0.5;
+            
             composer = new EffectComposer(renderer);
             composer.addPass(renderScene);
             composer.addPass(bloomPass);
 
-            // 3. 燈光
-            const ambientLight = new THREE.AmbientLight(0x111111);
-            scene.add(ambientLight);
-            
-            const spotLight = new THREE.SpotLight(0xffaa00, 5);
-            spotLight.position.set(5, 10, 5);
-            spotLight.castShadow = true;
-            scene.add(spotLight);
+            // 5. 燈光
+            const ambient = new THREE.AmbientLight(0x333333, 2); 
+            scene.add(ambient);
+            const mainLight = new THREE.PointLight(0xffd700, 2, 50);
+            mainLight.position.set(5, 8, 5);
+            scene.add(mainLight);
+            const blueFill = new THREE.PointLight(0x0055ff, 2, 40);
+            blueFill.position.set(-5, -2, -5);
+            scene.add(blueFill);
 
-            // 4. 建立物件
-            machineGroup = new THREE.Group();
-            scene.add(machineGroup);
+            // 6. 物件
+            createStars();
+            createMachine();
 
-            createShell(); // 外殼 (黃金吊燈)
-            createQPU();   // 內部 (量子晶片)
-
-            // 5. 控制器
+            // 7. 控制器
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enableDamping = true;
             controls.autoRotate = true;
             controls.autoRotateSpeed = 0.5;
+            controls.target.set(0, -1.5, 0);
 
-            // 6. 事件監聽
-            window.addEventListener('resize', onWindowResize);
+            // 8. 事件
+            window.addEventListener('resize', onResize);
             document.getElementById('btn-view').addEventListener('click', toggleView);
-            document.getElementById('btn-run').addEventListener('click', runSimulation);
+            document.getElementById('btn-run').addEventListener('click', runSim);
         }
 
-        // --- 建構外殼 (The Shell) ---
-        function createShell() {
-            shellGroup = new THREE.Group();
+        function checkDevice() {
+            isMobile = window.innerWidth <= 768;
+        }
+
+        function updateCameraByDevice() {
+            if (isMobile) {
+                // 手機：退後，視角稍微低一點
+                camera.position.set(13, 2, 13);
+            } else {
+                // 電腦：靠近，俯視角
+                camera.position.set(8, 4, 8);
+            }
+        }
+
+        function createMachine() {
+            machineGroup = new THREE.Group();
             
-            const goldMat = new THREE.MeshStandardMaterial({ 
-                color: 0xffd700, metalness: 1.0, roughness: 0.15, transparent: true, opacity: 1 
-            });
-
-            // 建立幾層盤子
-            const levels = [ {r:3, y:4}, {r:2.5, y:2}, {r:2, y:0}, {r:1.5, y:-2} ];
-            levels.forEach(l => {
-                const plate = new THREE.Mesh(new THREE.CylinderGeometry(l.r, l.r, 0.1, 32), goldMat);
-                plate.position.y = l.y;
+            // 外殼 (Shell)
+            shellGroup = new THREE.Group();
+            const goldMat = new THREE.MeshStandardMaterial({ color: 0xffaa00, metalness: 0.9, roughness: 0.15, transparent: true, opacity: 1 });
+            
+            // 結構簡化但保留層次
+            const levels = [4, 2, 0, -2];
+            levels.forEach((y, i) => {
+                const r = 3 - (i * 0.5);
+                const plate = new THREE.Mesh(new THREE.CylinderGeometry(r, r, 0.15, 32), goldMat);
+                plate.position.y = y;
                 shellGroup.add(plate);
-
-                // 螺旋管
-                if(l.y > -2) {
-                   const coilGeo = new THREE.TorusGeometry(l.r * 0.6, 0.05, 16, 100);
-                   const coil = new THREE.Mesh(coilGeo, goldMat);
-                   coil.position.y = l.y - 1;
-                   coil.rotation.x = Math.PI / 2;
-                   shellGroup.add(coil);
-                   
-                   // 直管
-                   const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2, 16), goldMat);
-                   pipe.position.y = l.y - 1;
-                   shellGroup.add(pipe);
+                // 連接管
+                if (i < levels.length - 1) {
+                    const pipes = new THREE.Group();
+                    for(let j=0; j<6; j++) {
+                        const angle = (j/6) * Math.PI * 2;
+                        const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 2, 8), goldMat);
+                        pipe.position.set(Math.cos(angle)*(r-0.5), y-1, Math.sin(angle)*(r-0.5));
+                        pipes.add(pipe);
+                    }
+                    shellGroup.add(pipes);
                 }
             });
+            
+            // 裝飾環
+            const ring = new THREE.Mesh(new THREE.TorusGeometry(1.8, 0.05, 8, 64), goldMat);
+            ring.rotation.x = Math.PI/2;
+            ring.position.y = 0.5;
+            shellGroup.add(ring);
 
             machineGroup.add(shellGroup);
-        }
 
-        // --- 建構 QPU (量子處理器) ---
-        function createQPU() {
+            // 核心 (QPU)
             qpuGroup = new THREE.Group();
-            qpuGroup.position.y = -3.5; // 位於機器最底部
+            qpuGroup.position.y = -3.5;
             
-            // 1. 晶片基板 (Silicon Wafer)
-            const waferGeo = new THREE.BoxGeometry(2, 0.05, 2);
-            const waferMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1, metalness: 0.8 });
-            const wafer = new THREE.Mesh(waferGeo, waferMat);
+            const wafer = new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.05, 1.5), new THREE.MeshStandardMaterial({ color: 0x111111 }));
             qpuGroup.add(wafer);
 
-            // 2. 建立 5 個量子位元 (Qubits) - 星形排列 (Star Topology)
-            // 中心 1 個，四周 4 個
-            const qubitPos = [
-                { x: 0, z: 0 },    // Q0 (Center)
-                { x: 0.6, z: 0.6 }, // Q1
-                { x: -0.6, z: 0.6 },// Q2
-                { x: -0.6, z: -0.6 },// Q3
-                { x: 0.6, z: -0.6 } // Q4
-            ];
-
-            const qubitGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.1, 32);
-            const qubitMatOff = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.9 });
+            // 5 Qubits
+            const positions = [[0,0], [0.5,0.5], [-0.5,0.5], [-0.5,-0.5], [0.5,-0.5]];
+            const qGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.2, 16);
+            const qMat = new THREE.MeshStandardMaterial({ color: 0x444444 });
             
-            qubitPos.forEach((pos, i) => {
-                const q = new THREE.Mesh(qubitGeo, qubitMatOff.clone()); // Clone 才能獨立變色
-                q.position.set(pos.x, 0.05, pos.z);
-                q.userData = { id: i, originalPos: pos }; // 儲存資料
+            positions.forEach(p => {
+                const q = new THREE.Mesh(qGeo, qMat.clone());
+                q.position.set(p[0], 0.1, p[1]);
+                // 光環
+                const glow = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.02, 16, 32), new THREE.MeshBasicMaterial({ color: 0x00ffff }));
+                glow.rotation.x = Math.PI/2;
+                q.add(glow);
                 
-                // 增加光環 (Ring)
-                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.01, 16, 32), new THREE.MeshBasicMaterial({ color: 0x444444 }));
-                ring.rotation.x = Math.PI/2;
-                q.add(ring);
-
                 qpuGroup.add(q);
                 qubits.push(q);
-
-                // 3. 建立連接線 (Couplers) - 連接到中心
-                if (i > 0) {
-                    const path = new THREE.LineCurve3(new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(pos.x, 0.05, pos.z));
-                    const tube = new THREE.Mesh(new THREE.TubeGeometry(path, 20, 0.01, 8, false), new THREE.MeshBasicMaterial({ color: 0x222222 }));
-                    qpuGroup.add(tube);
-                }
-
-                // 4. 建立輸入/輸出線 (I/O Lines) - 往上延伸
-                const ioPath = new THREE.LineCurve3(new THREE.Vector3(pos.x, 0.05, pos.z), new THREE.Vector3(pos.x, 5, pos.z)); // 往上 5 單位
-                const ioTube = new THREE.Mesh(new THREE.TubeGeometry(ioPath, 20, 0.005, 8, false), new THREE.MeshBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.3 }));
-                qpuGroup.add(ioTube);
             });
 
             machineGroup.add(qpuGroup);
+            scene.add(machineGroup);
         }
 
-        // --- 動畫邏輯：微波脈衝 (Pulse) ---
-        class Pulse {
-            constructor(startPos, endPos, color, speed, type) {
-                this.mesh = new THREE.Mesh(
-                    new THREE.SphereGeometry(0.03, 16, 16),
-                    new THREE.MeshBasicMaterial({ color: color })
-                );
-                this.mesh.position.copy(startPos);
-                this.start = startPos;
-                this.end = endPos;
-                this.progress = 0;
-                this.speed = speed;
-                this.type = type; // 'down', 'entangle', 'up'
-                this.finished = false;
-                scene.add(this.mesh);
+        function createStars() {
+            const geo = new THREE.BufferGeometry();
+            const pos = [];
+            for(let i=0; i<800; i++) {
+                pos.push((Math.random()-0.5)*50, (Math.random()-0.5)*50, (Math.random()-0.5)*50);
             }
-
-            update() {
-                this.progress += this.speed;
-                if (this.progress >= 1) {
-                    this.progress = 1;
-                    this.finished = true;
-                }
-                this.mesh.position.lerpVectors(this.start, this.end, this.progress);
-            }
-
-            remove() {
-                scene.remove(this.mesh);
-                this.mesh.geometry.dispose();
-            }
+            geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+            const mat = new THREE.PointsMaterial({ size: 0.1, color: 0x88ccff, transparent: true, opacity: 0.5 });
+            scene.add(new THREE.Points(geo, mat));
         }
-
-        // --- 互動功能 ---
 
         function toggleView() {
             isInternalView = !isInternalView;
-            
-            if (isInternalView) {
-                // 切換到內部視角
-                // 1. 讓外殼半透明
-                shellGroup.children.forEach(child => {
-                    if(child.material) {
-                        child.material.opacity = 0.1;
-                        child.material.transparent = true;
-                    }
-                });
-                // 2. 攝影機拉近
-                moveCamera(new THREE.Vector3(0, -2, 4), new THREE.Vector3(0, -3.5, 0));
+            if(isInternalView) {
+                // 進去
+                shellGroup.children.forEach(c => { if(c.material) c.material.opacity = 0.1; shellGroup.children.forEach(g => g.children?.forEach(p => p.material && (p.material.opacity=0.1))); });
+                
+                // 根據裝置決定鑽進去多深
+                const targetY = isMobile ? -1 : -2; 
+                const targetDist = isMobile ? 4 : 0;
+
+                moveCam(new THREE.Vector3(0, targetY, 5), new THREE.Vector3(0, -3.5, 0));
                 controls.autoRotate = false;
-                log("> VIEW: INTERNAL SENSORS ONLINE");
+                log("> INTERNAL VIEW");
             } else {
-                // 切換回外部
-                shellGroup.children.forEach(child => {
-                    if(child.material) {
-                        child.material.opacity = 1;
-                        child.material.transparent = false;
-                    }
-                });
-                moveCamera(new THREE.Vector3(10, 5, 10), new THREE.Vector3(0, 0, 0));
+                // 出來
+                shellGroup.children.forEach(c => { if(c.material) c.material.opacity = 1; shellGroup.children.forEach(g => g.children?.forEach(p => p.material && (p.material.opacity=1))); });
+                
+                // 回復原始位置
+                const resetPos = isMobile ? new THREE.Vector3(13, 2, 13) : new THREE.Vector3(8, 4, 8);
+                moveCam(resetPos, new THREE.Vector3(0, -1.5, 0));
                 controls.autoRotate = true;
-                log("> VIEW: EXTERNAL OVERVIEW");
+                log("> EXTERNAL VIEW");
             }
         }
 
-        function moveCamera(targetPos, lookAtPos) {
-            // 簡單的相機移動動畫
-            const startPos = camera.position.clone();
-            const startTarget = controls.target.clone();
+        function moveCam(pos, target) {
+            const startP = camera.position.clone();
+            const startT = controls.target.clone();
             let t = 0;
-            
-            function camAnim() {
-                t += 0.02;
-                if (t <= 1) {
-                    camera.position.lerpVectors(startPos, targetPos, t);
-                    controls.target.lerpVectors(startTarget, lookAtPos, t);
-                    requestAnimationFrame(camAnim);
+            function loop() {
+                t += 0.04;
+                if(t<=1) {
+                    camera.position.lerpVectors(startP, pos, t);
+                    controls.target.lerpVectors(startT, target, t);
+                    requestAnimationFrame(loop);
                 }
             }
-            camAnim();
+            loop();
         }
 
-        function runSimulation() {
-            if (isRunning) return;
+        function runSim() {
+            if(isRunning) return;
             isRunning = true;
-            log("> INITIALIZING CIRCUIT...");
+            if(!isInternalView) toggleView();
 
-            // 確保視角在內部
-            if (!isInternalView) toggleView();
-
+            log("> INITIALIZING...");
+            
             setTimeout(() => {
-                // 步驟 1: 發送微波 (Input Pulses)
-                log("> SENDING MICROWAVE PULSES...");
-                qubits.forEach((q, i) => {
-                    // 建立從上方掉下來的脈衝
-                    const start = new THREE.Vector3(q.position.x, 2, q.position.z); // 從上方
-                    const end = q.position.clone().add(qpuGroup.position); // 到 Qubit (注意 Group 座標轉換)
-                    // 修正座標：因為 Pulse 在 Scene 層級，Qubit 在 Group 內
-                    const globalQubitPos = new THREE.Vector3();
-                    q.getWorldPosition(globalQubitPos);
-                    
-                    const pulse = new Pulse(new THREE.Vector3(start.x, start.y - 3.5, start.z), globalQubitPos, 0xff0055, 0.05, 'down');
-                    pulses.push(pulse);
+                // 下落脈衝
+                qubits.forEach(q => {
+                   const start = new THREE.Vector3(q.position.x, 4, q.position.z);
+                   // 加上 Group 的位移
+                   const realStart = start.add(qpuGroup.position);
+                   const realEnd = q.position.clone().add(qpuGroup.position);
+                   createPulse(new THREE.Vector3(q.position.x, 2, q.position.z), realEnd, 0xff0055);
                 });
 
-                // 步驟 2: 處理與糾纏 (Processing)
                 setTimeout(() => {
-                    log("> QUANTUM GATES ACTIVE: SUPERPOSITION");
-                    qubits.forEach(q => {
-                        q.material.emissive.setHex(0x00ffff); // 變亮
-                        q.material.emissiveIntensity = 2;
-                    });
+                    log("> ENTANGLING...");
+                    qubits.forEach(q => { q.material.emissive.setHex(0x00ffff); q.material.emissiveIntensity = 2; });
 
-                    // 產生中心與周圍的糾纏光束
-                    log("> ENTANGLING QUBITS...");
-                    // 這裡可以用 Line 動畫，簡單起見我們讓 Qubit 顏色閃爍
-                    let flashCount = 0;
-                    let flashInt = setInterval(() => {
-                        qubits.forEach(q => {
-                            q.material.emissiveIntensity = Math.random() * 3;
+                    setTimeout(() => {
+                        log("> RESULT: |01101⟩");
+                        qubits.forEach(q => { 
+                            q.material.emissive.setHex(0x000000);
+                            const wPos = new THREE.Vector3();
+                            q.getWorldPosition(wPos);
+                            createPulse(wPos, new THREE.Vector3(wPos.x, 5, wPos.z), 0x00ff00);
                         });
-                        flashCount++;
-                        if(flashCount > 20) {
-                            clearInterval(flashInt);
-                            finishSimulation();
-                        }
-                    }, 100);
-
-                }, 1200);
-
-            }, 1000);
+                        isRunning = false;
+                    }, 1500);
+                }, 800);
+            }, 800);
         }
 
-        function finishSimulation() {
-            log("> MEASUREMENT COMPLETE.");
-            log("> READOUT SIGNAL SENDING...");
-
-            // 步驟 3: 訊號回傳 (Readout)
-            qubits.forEach(q => {
-                const globalQubitPos = new THREE.Vector3();
-                q.getWorldPosition(globalQubitPos);
-                const end = new THREE.Vector3(globalQubitPos.x, globalQubitPos.y + 5, globalQubitPos.z);
-                
-                const pulse = new Pulse(globalQubitPos, end, 0x00ff00, 0.05, 'up');
-                pulses.push(pulse);
-                
-                // 熄滅 Qubit
-                q.material.emissive.setHex(0x000000);
-            });
-
-            setTimeout(() => {
-                isRunning = false;
-                log("> RESULT: |01011⟩");
-                log("> SYSTEM IDLE.");
-            }, 1500);
+        function createPulse(start, end, color) {
+            const mesh = new THREE.Mesh(new THREE.SphereGeometry(0.08), new THREE.MeshBasicMaterial({ color: color }));
+            mesh.position.copy(start);
+            scene.add(mesh);
+            pulses.push({ mesh, start, end, t:0 });
         }
 
         function log(msg) {
-            logPanel.innerHTML += `<br>${msg}`;
-            logPanel.scrollTop = logPanel.scrollHeight;
+            logEl.innerText = msg + "\n" + logEl.innerText;
         }
 
-        function onWindowResize() {
+        function onResize() {
+            checkDevice(); // 重新檢查是否變更裝置模式 (例如旋轉螢幕)
+            
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
             composer.setSize(window.innerWidth, window.innerHeight);
+            
+            // 如果不在內部視角，根據新尺寸調整相機距離
+            if(!isInternalView) updateCameraByDevice();
         }
 
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
-
-            // 更新所有脈衝動畫
-            for (let i = pulses.length - 1; i >= 0; i--) {
+            
+            // 脈衝動畫
+            for(let i=pulses.length-1; i>=0; i--) {
                 let p = pulses[i];
-                p.update();
-                if (p.finished) {
-                    p.remove();
-                    pulses.splice(i, 1);
-                }
+                p.t += 0.05;
+                p.mesh.position.lerpVectors(p.start, p.end, p.t);
+                if(p.t >= 1) { scene.remove(p.mesh); pulses.splice(i,1); }
             }
 
             composer.render();
