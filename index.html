@@ -2,189 +2,428 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>量子電腦 3D 觀賞室</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quantum Execution | Deep Simulation</title>
     <style>
-        body {
-            margin: 0;
-            overflow: hidden; /* 隱藏滾動條 */
-            background-color: #000; /* 純黑背景 */
-            font-family: 'Segoe UI', sans-serif;
+        /* --- UI & Layout --- */
+        body { margin: 0; background-color: #000; overflow: hidden; font-family: 'Courier New', monospace; }
+        
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none; /* 讓滑鼠穿透 UI 操作 3D */
+            display: flex; flex-direction: column; justify-content: space-between;
         }
-        #info {
-            position: absolute;
-            top: 20px;
-            width: 100%;
+
+        /* 頂部標題 */
+        .header {
+            padding: 20px;
+            background: linear-gradient(to bottom, rgba(0,0,0,0.9), transparent);
             text-align: center;
-            color: #66fcf1; /* 霓虹青色文字 */
-            pointer-events: none; /* 讓滑鼠事件穿透文字 */
-            z-index: 100;
-            text-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
         }
-        h1 { margin: 0; font-weight: 300; letter-spacing: 2px; }
-        p { font-size: 14px; color: #aaa; }
+        h1 { color: #fff; margin: 0; font-weight: 300; letter-spacing: 8px; text-shadow: 0 0 20px #00ffff; }
+        .status { color: #66fcf1; font-size: 12px; margin-top: 5px; opacity: 0.8; }
+
+        /* 底部控制區 */
+        .controls {
+            padding: 40px;
+            background: linear-gradient(to top, rgba(0,0,0,0.9), transparent);
+            display: flex; gap: 20px; justify-content: center;
+            pointer-events: auto; /* 恢復按鈕點擊 */
+        }
+
+        button {
+            background: rgba(0, 20, 40, 0.8);
+            border: 1px solid #66fcf1;
+            color: #66fcf1;
+            padding: 15px 40px;
+            font-size: 16px;
+            font-family: inherit;
+            cursor: pointer;
+            transition: 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        button:hover { background: #66fcf1; color: #000; box-shadow: 0 0 30px #66fcf1; }
+        
+        /* 按鈕按下時的特效 */
+        button.active::after {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.2);
+        }
+
+        #log-panel {
+            position: absolute; top: 50%; right: 20px; transform: translateY(-50%);
+            width: 250px; font-size: 12px; color: #0f0;
+            text-shadow: 0 0 5px #0f0;
+            line-height: 1.5;
+            opacity: 0.7;
+        }
     </style>
 </head>
 <body>
 
-    <div id="info">
-        <h1>QUANTUM CHANDELIER</h1>
-        <p>拖曳旋轉 | 滾輪縮放 | 右鍵平移<br>觀賞稀釋冷凍機結構</p>
+    <div id="ui-layer">
+        <div class="header">
+            <h1>QUANTUM CORE</h1>
+            <div class="status">SYSTEM TEMP: 15mK | COHERENCE: STABLE</div>
+        </div>
+        
+        <div id="log-panel">
+            > SYSTEM READY<br>
+            > WAITING FOR INSTRUCTION...
+        </div>
+
+        <div class="controls">
+            <button id="btn-view">切換視角 (View)</button>
+            <button id="btn-run" style="border-color: #ff0055; color: #ff0055;">執行運算 (EXECUTE)</button>
+        </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+    <script type="module">
+        import * as THREE from 'https://unpkg.com/three@0.160.0/build/three.module.js';
+        import { OrbitControls } from 'https://unpkg.com/three@0.160.0/examples/jsm/controls/OrbitControls.js';
+        import { EffectComposer } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/EffectComposer.js';
+        import { RenderPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/RenderPass.js';
+        import { UnrealBloomPass } from 'https://unpkg.com/three@0.160.0/examples/jsm/postprocessing/UnrealBloomPass.js';
 
-    <script>
-        // --- 1. 場景設定 (Scene Setup) ---
-        const scene = new THREE.Scene();
-        // 添加一點環境霧氣，增加深邃感
-        scene.fog = new THREE.FogExp2(0x000000, 0.02);
+        // --- 全域變數 ---
+        let scene, camera, renderer, composer, controls;
+        let qpuGroup, shellGroup, machineGroup;
+        let qubits = []; // 儲存 5 個 qubit 的網格物件
+        let pulses = []; // 儲存正在飛行的訊號脈衝
+        let isInternalView = false;
+        let isRunning = false;
 
-        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-        camera.position.set(0, 5, 15); // 初始相機位置
+        const logPanel = document.getElementById('log-panel');
 
-        const renderer = new THREE.WebGLRenderer({ antialias: true }); // 開啟抗鋸齒
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.toneMapping = THREE.ReinhardToneMapping; // 讓亮部更真實
-        document.body.appendChild(renderer.domElement);
+        init();
+        animate();
 
-        // --- 2. 燈光 (Lighting) ---
-        // 環境光 (微弱的基礎亮度)
-        const ambientLight = new THREE.AmbientLight(0x333333);
-        scene.add(ambientLight);
+        function init() {
+            // 1. 場景設定
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x000000, 0.02);
 
-        // 主光源 (上方暖光，照亮金屬結構)
-        const topLight = new THREE.DirectionalLight(0xffddaa, 1.5);
-        topLight.position.set(5, 10, 5);
-        scene.add(topLight);
+            camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(10, 5, 10);
 
-        // 底部冷光 (核心發光，青色)
-        const coreLight = new THREE.PointLight(0x66fcf1, 2, 20);
-        coreLight.position.set(0, -4.5, 0);
-        scene.add(coreLight);
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(window.devicePixelRatio);
+            renderer.toneMapping = THREE.ReinhardToneMapping;
+            document.body.appendChild(renderer.domElement);
 
-        // --- 3. 材質 (Materials) ---
-        // 黃金/銅材質 (高反射金屬感)
-        const goldMaterial = new THREE.MeshStandardMaterial({
-            color: 0xffaa00,
-            metalness: 0.9,
-            roughness: 0.2,
-        });
+            // 2. 後製特效 (Bloom) - 讓光線暈開
+            const renderScene = new RenderPass(scene, camera);
+            const bloomPass = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
+            bloomPass.threshold = 0.1;
+            bloomPass.strength = 1.2; // 強烈的光暈
+            bloomPass.radius = 0.5;
+            composer = new EffectComposer(renderer);
+            composer.addPass(renderScene);
+            composer.addPass(bloomPass);
 
-        // 連接管線材質 (稍微暗一點的金屬)
-        const pipeMaterial = new THREE.MeshStandardMaterial({
-            color: 0xcc8822,
-            metalness: 0.8,
-            roughness: 0.3,
-        });
+            // 3. 燈光
+            const ambientLight = new THREE.AmbientLight(0x111111);
+            scene.add(ambientLight);
+            
+            const spotLight = new THREE.SpotLight(0xffaa00, 5);
+            spotLight.position.set(5, 10, 5);
+            spotLight.castShadow = true;
+            scene.add(spotLight);
 
-        // 核心晶片材質 (自發光)
-        const chipMaterial = new THREE.MeshBasicMaterial({
-            color: 0x66fcf1,
-        });
+            // 4. 建立物件
+            machineGroup = new THREE.Group();
+            scene.add(machineGroup);
 
-        // --- 4. 模型構建 (Model Construction) ---
-        const chandelierGroup = new THREE.Group();
+            createShell(); // 外殼 (黃金吊燈)
+            createQPU();   // 內部 (量子晶片)
 
-        // 輔助函數：建立圓盤 (溫度層級)
-        function createStage(radius, yPos) {
-            const geometry = new THREE.CylinderGeometry(radius, radius, 0.2, 64);
-            const disc = new THREE.Mesh(geometry, goldMaterial);
-            disc.position.y = yPos;
-            chandelierGroup.add(disc);
+            // 5. 控制器
+            controls = new OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.5;
+
+            // 6. 事件監聽
+            window.addEventListener('resize', onWindowResize);
+            document.getElementById('btn-view').addEventListener('click', toggleView);
+            document.getElementById('btn-run').addEventListener('click', runSimulation);
         }
 
-        // 輔助函數：建立連接管
-        function createPipes(radius, startY, endY, count) {
-            for (let i = 0; i < count; i++) {
-                const angle = (i / count) * Math.PI * 2;
-                const x = Math.cos(angle) * radius;
-                const z = Math.sin(angle) * radius;
-                const height = startY - endY;
-                const geometry = new THREE.CylinderGeometry(0.05, 0.05, height, 16);
-                const pipe = new THREE.Mesh(geometry, pipeMaterial);
-                pipe.position.set(x, startY - height / 2, z);
-                chandelierGroup.add(pipe);
+        // --- 建構外殼 (The Shell) ---
+        function createShell() {
+            shellGroup = new THREE.Group();
+            
+            const goldMat = new THREE.MeshStandardMaterial({ 
+                color: 0xffd700, metalness: 1.0, roughness: 0.15, transparent: true, opacity: 1 
+            });
+
+            // 建立幾層盤子
+            const levels = [ {r:3, y:4}, {r:2.5, y:2}, {r:2, y:0}, {r:1.5, y:-2} ];
+            levels.forEach(l => {
+                const plate = new THREE.Mesh(new THREE.CylinderGeometry(l.r, l.r, 0.1, 32), goldMat);
+                plate.position.y = l.y;
+                shellGroup.add(plate);
+
+                // 螺旋管
+                if(l.y > -2) {
+                   const coilGeo = new THREE.TorusGeometry(l.r * 0.6, 0.05, 16, 100);
+                   const coil = new THREE.Mesh(coilGeo, goldMat);
+                   coil.position.y = l.y - 1;
+                   coil.rotation.x = Math.PI / 2;
+                   shellGroup.add(coil);
+                   
+                   // 直管
+                   const pipe = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 2, 16), goldMat);
+                   pipe.position.y = l.y - 1;
+                   shellGroup.add(pipe);
+                }
+            });
+
+            machineGroup.add(shellGroup);
+        }
+
+        // --- 建構 QPU (量子處理器) ---
+        function createQPU() {
+            qpuGroup = new THREE.Group();
+            qpuGroup.position.y = -3.5; // 位於機器最底部
+            
+            // 1. 晶片基板 (Silicon Wafer)
+            const waferGeo = new THREE.BoxGeometry(2, 0.05, 2);
+            const waferMat = new THREE.MeshStandardMaterial({ color: 0x050505, roughness: 0.1, metalness: 0.8 });
+            const wafer = new THREE.Mesh(waferGeo, waferMat);
+            qpuGroup.add(wafer);
+
+            // 2. 建立 5 個量子位元 (Qubits) - 星形排列 (Star Topology)
+            // 中心 1 個，四周 4 個
+            const qubitPos = [
+                { x: 0, z: 0 },    // Q0 (Center)
+                { x: 0.6, z: 0.6 }, // Q1
+                { x: -0.6, z: 0.6 },// Q2
+                { x: -0.6, z: -0.6 },// Q3
+                { x: 0.6, z: -0.6 } // Q4
+            ];
+
+            const qubitGeo = new THREE.CylinderGeometry(0.1, 0.1, 0.1, 32);
+            const qubitMatOff = new THREE.MeshStandardMaterial({ color: 0x333333, metalness: 0.9 });
+            
+            qubitPos.forEach((pos, i) => {
+                const q = new THREE.Mesh(qubitGeo, qubitMatOff.clone()); // Clone 才能獨立變色
+                q.position.set(pos.x, 0.05, pos.z);
+                q.userData = { id: i, originalPos: pos }; // 儲存資料
+                
+                // 增加光環 (Ring)
+                const ring = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.01, 16, 32), new THREE.MeshBasicMaterial({ color: 0x444444 }));
+                ring.rotation.x = Math.PI/2;
+                q.add(ring);
+
+                qpuGroup.add(q);
+                qubits.push(q);
+
+                // 3. 建立連接線 (Couplers) - 連接到中心
+                if (i > 0) {
+                    const path = new THREE.LineCurve3(new THREE.Vector3(0, 0.05, 0), new THREE.Vector3(pos.x, 0.05, pos.z));
+                    const tube = new THREE.Mesh(new THREE.TubeGeometry(path, 20, 0.01, 8, false), new THREE.MeshBasicMaterial({ color: 0x222222 }));
+                    qpuGroup.add(tube);
+                }
+
+                // 4. 建立輸入/輸出線 (I/O Lines) - 往上延伸
+                const ioPath = new THREE.LineCurve3(new THREE.Vector3(pos.x, 0.05, pos.z), new THREE.Vector3(pos.x, 5, pos.z)); // 往上 5 單位
+                const ioTube = new THREE.Mesh(new THREE.TubeGeometry(ioPath, 20, 0.005, 8, false), new THREE.MeshBasicMaterial({ color: 0x444444, transparent: true, opacity: 0.3 }));
+                qpuGroup.add(ioTube);
+            });
+
+            machineGroup.add(qpuGroup);
+        }
+
+        // --- 動畫邏輯：微波脈衝 (Pulse) ---
+        class Pulse {
+            constructor(startPos, endPos, color, speed, type) {
+                this.mesh = new THREE.Mesh(
+                    new THREE.SphereGeometry(0.03, 16, 16),
+                    new THREE.MeshBasicMaterial({ color: color })
+                );
+                this.mesh.position.copy(startPos);
+                this.start = startPos;
+                this.end = endPos;
+                this.progress = 0;
+                this.speed = speed;
+                this.type = type; // 'down', 'entangle', 'up'
+                this.finished = false;
+                scene.add(this.mesh);
+            }
+
+            update() {
+                this.progress += this.speed;
+                if (this.progress >= 1) {
+                    this.progress = 1;
+                    this.finished = true;
+                }
+                this.mesh.position.lerpVectors(this.start, this.end, this.progress);
+            }
+
+            remove() {
+                scene.remove(this.mesh);
+                this.mesh.geometry.dispose();
             }
         }
 
-        // 開始組裝量子電腦結構 (從上到下)
-        
-        // 頂部法蘭 (最寬，室溫區)
-        createStage(4, 6);
-        
-        // 第一層連接管
-        createPipes(3, 6, 3, 8);
-        
-        // 77K 層 (液態氮)
-        createStage(3, 3);
+        // --- 互動功能 ---
 
-        // 第二層連接管
-        createPipes(2.2, 3, 0, 6);
+        function toggleView() {
+            isInternalView = !isInternalView;
+            
+            if (isInternalView) {
+                // 切換到內部視角
+                // 1. 讓外殼半透明
+                shellGroup.children.forEach(child => {
+                    if(child.material) {
+                        child.material.opacity = 0.1;
+                        child.material.transparent = true;
+                    }
+                });
+                // 2. 攝影機拉近
+                moveCamera(new THREE.Vector3(0, -2, 4), new THREE.Vector3(0, -3.5, 0));
+                controls.autoRotate = false;
+                log("> VIEW: INTERNAL SENSORS ONLINE");
+            } else {
+                // 切換回外部
+                shellGroup.children.forEach(child => {
+                    if(child.material) {
+                        child.material.opacity = 1;
+                        child.material.transparent = false;
+                    }
+                });
+                moveCamera(new THREE.Vector3(10, 5, 10), new THREE.Vector3(0, 0, 0));
+                controls.autoRotate = true;
+                log("> VIEW: EXTERNAL OVERVIEW");
+            }
+        }
 
-        // 4K 層 (液態氦)
-        createStage(2.2, 0);
+        function moveCamera(targetPos, lookAtPos) {
+            // 簡單的相機移動動畫
+            const startPos = camera.position.clone();
+            const startTarget = controls.target.clone();
+            let t = 0;
+            
+            function camAnim() {
+                t += 0.02;
+                if (t <= 1) {
+                    camera.position.lerpVectors(startPos, targetPos, t);
+                    controls.target.lerpVectors(startTarget, lookAtPos, t);
+                    requestAnimationFrame(camAnim);
+                }
+            }
+            camAnim();
+        }
 
-        // 第三層連接管 (更密集)
-        createPipes(1.5, 0, -3, 12);
+        function runSimulation() {
+            if (isRunning) return;
+            isRunning = true;
+            log("> INITIALIZING CIRCUIT...");
 
-        // mK 混合室層 (最冷區)
-        createStage(1.5, -3);
+            // 確保視角在內部
+            if (!isInternalView) toggleView();
 
-        // 底部核心支架
-        createPipes(0.8, -3, -4.5, 4);
+            setTimeout(() => {
+                // 步驟 1: 發送微波 (Input Pulses)
+                log("> SENDING MICROWAVE PULSES...");
+                qubits.forEach((q, i) => {
+                    // 建立從上方掉下來的脈衝
+                    const start = new THREE.Vector3(q.position.x, 2, q.position.z); // 從上方
+                    const end = q.position.clone().add(qpuGroup.position); // 到 Qubit (注意 Group 座標轉換)
+                    // 修正座標：因為 Pulse 在 Scene 層級，Qubit 在 Group 內
+                    const globalQubitPos = new THREE.Vector3();
+                    q.getWorldPosition(globalQubitPos);
+                    
+                    const pulse = new Pulse(new THREE.Vector3(start.x, start.y - 3.5, start.z), globalQubitPos, 0xff0055, 0.05, 'down');
+                    pulses.push(pulse);
+                });
 
-        // 量子處理器 (QPU) 核心
-        const chipGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.5);
-        const chip = new THREE.Mesh(chipGeometry, chipMaterial);
-        chip.position.y = -4.6;
-        // 增加一個發光外殼
-        const glowGeometry = new THREE.SphereGeometry(0.8, 32, 32);
-        const glowMaterial = new THREE.MeshBasicMaterial({
-             color: 0x66fcf1, 
-             transparent: true, 
-             opacity: 0.2,
-             side: THREE.BackSide // 渲染內部，創造光暈感
-        });
-        const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
-        chip.add(glowSphere);
-        chandelierGroup.add(chip);
+                // 步驟 2: 處理與糾纏 (Processing)
+                setTimeout(() => {
+                    log("> QUANTUM GATES ACTIVE: SUPERPOSITION");
+                    qubits.forEach(q => {
+                        q.material.emissive.setHex(0x00ffff); // 變亮
+                        q.material.emissiveIntensity = 2;
+                    });
 
-        scene.add(chandelierGroup);
+                    // 產生中心與周圍的糾纏光束
+                    log("> ENTANGLING QUBITS...");
+                    // 這裡可以用 Line 動畫，簡單起見我們讓 Qubit 顏色閃爍
+                    let flashCount = 0;
+                    let flashInt = setInterval(() => {
+                        qubits.forEach(q => {
+                            q.material.emissiveIntensity = Math.random() * 3;
+                        });
+                        flashCount++;
+                        if(flashCount > 20) {
+                            clearInterval(flashInt);
+                            finishSimulation();
+                        }
+                    }, 100);
 
+                }, 1200);
 
-        // --- 5. 控制與動畫 (Controls & Animation) ---
-        const controls = new THREE.OrbitControls(camera, renderer.domElement);
-        controls.enableDamping = true; // 開啟阻尼慣性，讓旋轉更滑順
-        controls.dampingFactor = 0.05;
-        controls.autoRotate = true;    // 開啟自動旋轉展示
-        controls.autoRotateSpeed = 0.5; // 旋轉速度
-        controls.target.set(0, 0, 0); // 設定旋轉中心點
+            }, 1000);
+        }
 
-        // 視窗大小調整監聽
-        window.addEventListener('resize', onWindowResize, false);
+        function finishSimulation() {
+            log("> MEASUREMENT COMPLETE.");
+            log("> READOUT SIGNAL SENDING...");
+
+            // 步驟 3: 訊號回傳 (Readout)
+            qubits.forEach(q => {
+                const globalQubitPos = new THREE.Vector3();
+                q.getWorldPosition(globalQubitPos);
+                const end = new THREE.Vector3(globalQubitPos.x, globalQubitPos.y + 5, globalQubitPos.z);
+                
+                const pulse = new Pulse(globalQubitPos, end, 0x00ff00, 0.05, 'up');
+                pulses.push(pulse);
+                
+                // 熄滅 Qubit
+                q.material.emissive.setHex(0x000000);
+            });
+
+            setTimeout(() => {
+                isRunning = false;
+                log("> RESULT: |01011⟩");
+                log("> SYSTEM IDLE.");
+            }, 1500);
+        }
+
+        function log(msg) {
+            logPanel.innerHTML += `<br>${msg}`;
+            logPanel.scrollTop = logPanel.scrollHeight;
+        }
+
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            composer.setSize(window.innerWidth, window.innerHeight);
         }
 
-        // 動畫迴圈
         function animate() {
             requestAnimationFrame(animate);
-            
-            // 讓核心光稍微脈衝閃爍，增加生命感
-            const time = Date.now() * 0.001;
-            coreLight.intensity = 2 + Math.sin(time * 2) * 0.5;
-            chipMaterial.opacity = 0.8 + Math.sin(time * 2) * 0.2;
+            controls.update();
 
-            controls.update(); // 更新控制器狀態
-            renderer.render(scene, camera);
+            // 更新所有脈衝動畫
+            for (let i = pulses.length - 1; i >= 0; i--) {
+                let p = pulses[i];
+                p.update();
+                if (p.finished) {
+                    p.remove();
+                    pulses.splice(i, 1);
+                }
+            }
+
+            composer.render();
         }
-
-        animate();
-
     </script>
 </body>
 </html>
