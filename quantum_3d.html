@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>量子電腦 3D 觀賞室</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden; /* 隱藏滾動條 */
+            background-color: #000; /* 純黑背景 */
+            font-family: 'Segoe UI', sans-serif;
+        }
+        #info {
+            position: absolute;
+            top: 20px;
+            width: 100%;
+            text-align: center;
+            color: #66fcf1; /* 霓虹青色文字 */
+            pointer-events: none; /* 讓滑鼠事件穿透文字 */
+            z-index: 100;
+            text-shadow: 0 0 10px rgba(102, 252, 241, 0.5);
+        }
+        h1 { margin: 0; font-weight: 300; letter-spacing: 2px; }
+        p { font-size: 14px; color: #aaa; }
+    </style>
+</head>
+<body>
+
+    <div id="info">
+        <h1>QUANTUM CHANDELIER</h1>
+        <p>拖曳旋轉 | 滾輪縮放 | 右鍵平移<br>觀賞稀釋冷凍機結構</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // --- 1. 場景設定 (Scene Setup) ---
+        const scene = new THREE.Scene();
+        // 添加一點環境霧氣，增加深邃感
+        scene.fog = new THREE.FogExp2(0x000000, 0.02);
+
+        const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(0, 5, 15); // 初始相機位置
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true }); // 開啟抗鋸齒
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        renderer.toneMapping = THREE.ReinhardToneMapping; // 讓亮部更真實
+        document.body.appendChild(renderer.domElement);
+
+        // --- 2. 燈光 (Lighting) ---
+        // 環境光 (微弱的基礎亮度)
+        const ambientLight = new THREE.AmbientLight(0x333333);
+        scene.add(ambientLight);
+
+        // 主光源 (上方暖光，照亮金屬結構)
+        const topLight = new THREE.DirectionalLight(0xffddaa, 1.5);
+        topLight.position.set(5, 10, 5);
+        scene.add(topLight);
+
+        // 底部冷光 (核心發光，青色)
+        const coreLight = new THREE.PointLight(0x66fcf1, 2, 20);
+        coreLight.position.set(0, -4.5, 0);
+        scene.add(coreLight);
+
+        // --- 3. 材質 (Materials) ---
+        // 黃金/銅材質 (高反射金屬感)
+        const goldMaterial = new THREE.MeshStandardMaterial({
+            color: 0xffaa00,
+            metalness: 0.9,
+            roughness: 0.2,
+        });
+
+        // 連接管線材質 (稍微暗一點的金屬)
+        const pipeMaterial = new THREE.MeshStandardMaterial({
+            color: 0xcc8822,
+            metalness: 0.8,
+            roughness: 0.3,
+        });
+
+        // 核心晶片材質 (自發光)
+        const chipMaterial = new THREE.MeshBasicMaterial({
+            color: 0x66fcf1,
+        });
+
+        // --- 4. 模型構建 (Model Construction) ---
+        const chandelierGroup = new THREE.Group();
+
+        // 輔助函數：建立圓盤 (溫度層級)
+        function createStage(radius, yPos) {
+            const geometry = new THREE.CylinderGeometry(radius, radius, 0.2, 64);
+            const disc = new THREE.Mesh(geometry, goldMaterial);
+            disc.position.y = yPos;
+            chandelierGroup.add(disc);
+        }
+
+        // 輔助函數：建立連接管
+        function createPipes(radius, startY, endY, count) {
+            for (let i = 0; i < count; i++) {
+                const angle = (i / count) * Math.PI * 2;
+                const x = Math.cos(angle) * radius;
+                const z = Math.sin(angle) * radius;
+                const height = startY - endY;
+                const geometry = new THREE.CylinderGeometry(0.05, 0.05, height, 16);
+                const pipe = new THREE.Mesh(geometry, pipeMaterial);
+                pipe.position.set(x, startY - height / 2, z);
+                chandelierGroup.add(pipe);
+            }
+        }
+
+        // 開始組裝量子電腦結構 (從上到下)
+        
+        // 頂部法蘭 (最寬，室溫區)
+        createStage(4, 6);
+        
+        // 第一層連接管
+        createPipes(3, 6, 3, 8);
+        
+        // 77K 層 (液態氮)
+        createStage(3, 3);
+
+        // 第二層連接管
+        createPipes(2.2, 3, 0, 6);
+
+        // 4K 層 (液態氦)
+        createStage(2.2, 0);
+
+        // 第三層連接管 (更密集)
+        createPipes(1.5, 0, -3, 12);
+
+        // mK 混合室層 (最冷區)
+        createStage(1.5, -3);
+
+        // 底部核心支架
+        createPipes(0.8, -3, -4.5, 4);
+
+        // 量子處理器 (QPU) 核心
+        const chipGeometry = new THREE.BoxGeometry(0.5, 0.1, 0.5);
+        const chip = new THREE.Mesh(chipGeometry, chipMaterial);
+        chip.position.y = -4.6;
+        // 增加一個發光外殼
+        const glowGeometry = new THREE.SphereGeometry(0.8, 32, 32);
+        const glowMaterial = new THREE.MeshBasicMaterial({
+             color: 0x66fcf1, 
+             transparent: true, 
+             opacity: 0.2,
+             side: THREE.BackSide // 渲染內部，創造光暈感
+        });
+        const glowSphere = new THREE.Mesh(glowGeometry, glowMaterial);
+        chip.add(glowSphere);
+        chandelierGroup.add(chip);
+
+        scene.add(chandelierGroup);
+
+
+        // --- 5. 控制與動畫 (Controls & Animation) ---
+        const controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 開啟阻尼慣性，讓旋轉更滑順
+        controls.dampingFactor = 0.05;
+        controls.autoRotate = true;    // 開啟自動旋轉展示
+        controls.autoRotateSpeed = 0.5; // 旋轉速度
+        controls.target.set(0, 0, 0); // 設定旋轉中心點
+
+        // 視窗大小調整監聽
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // 動畫迴圈
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // 讓核心光稍微脈衝閃爍，增加生命感
+            const time = Date.now() * 0.001;
+            coreLight.intensity = 2 + Math.sin(time * 2) * 0.5;
+            chipMaterial.opacity = 0.8 + Math.sin(time * 2) * 0.2;
+
+            controls.update(); // 更新控制器狀態
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+    </script>
+</body>
+</html>
